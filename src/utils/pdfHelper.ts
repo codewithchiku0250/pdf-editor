@@ -268,22 +268,22 @@ export async function compilePdf(
 
           const textColor = hexToRgb(textElem.color) || rgb(0, 0, 0);
 
-          // Draw the text
+          // Draw the text (aligned with baseline, adjusted for HTML padding and line-height centering)
           pdfPage.drawText(textElem.text, {
             x: coords.x,
-            // Adjust y slightly since drawing starts from baseline
-            y: coords.y + coords.height - textElem.fontSize * 0.85,
+            y: coords.y + coords.height - textElem.fontSize * 1.0,
             size: textElem.fontSize,
             font: selectedFont,
             color: textColor,
+            lineHeight: textElem.fontSize * 1.15,
           });
 
           // Draw underline if enabled
           if (textElem.underline) {
             const textWidth = selectedFont.widthOfTextAtSize(textElem.text, textElem.fontSize);
             pdfPage.drawLine({
-              start: { x: coords.x, y: coords.y + coords.height - textElem.fontSize * 0.95 },
-              end: { x: coords.x + textWidth, y: coords.y + coords.height - textElem.fontSize * 0.95 },
+              start: { x: coords.x, y: coords.y + coords.height - textElem.fontSize * 1.08 },
+              end: { x: coords.x + textWidth, y: coords.y + coords.height - textElem.fontSize * 1.08 },
               thickness: textElem.fontSize / 15,
               color: textColor,
             });
