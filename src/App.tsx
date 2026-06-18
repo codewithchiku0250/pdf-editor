@@ -12,13 +12,13 @@ import confetti from 'canvas-confetti';
 import * as pdfjs from 'pdfjs-dist';
 
 // Components
-// Components
 import Toolbar from './components/Toolbar';
 import type { ToolType } from './components/Toolbar';
 import ThumbnailSidebar from './components/ThumbnailSidebar';
 import PropertiesPanel from './components/PropertiesPanel';
 import PageCanvas from './components/PageCanvas';
 import SignatureModal from './components/SignatureModal';
+import SubscriptionModal from './components/SubscriptionModal';
 import Toast from './components/Toast';
 import type { ToastMessage } from './components/Toast';
 
@@ -35,6 +35,18 @@ import type {
 } from './utils/pdfHelper';
 
 export const App: React.FC = () => {
+  // User Authentication & Subscription States
+  const [user, setUser] = useState<{ name: string; email: string; avatar: string } | null>(null);
+  const [subscription, setSubscription] = useState<{ active: boolean; planName: string; expiresAt: number } | null>(null);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  
+  // Google Mock Sign-in States
+  const [showMockGooglePopup, setShowMockGooglePopup] = useState(false);
+  const [googleNameInput, setGoogleNameInput] = useState('');
+  const [googleEmailInput, setGoogleEmailInput] = useState('');
+  const [isSigningIn, setIsSigningIn] = useState(false);
+
   // File Upload State
   const [pdfBytes, setPdfBytes] = useState<ArrayBuffer | null>(null);
   const [pdfDocProxy, setPdfDocProxy] = useState<pdfjs.PDFDocumentProxy | null>(null);
@@ -127,7 +139,70 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
+    
+    const savedUser = localStorage.getItem('propdf_user');
+    const savedSubscription = localStorage.getItem('propdf_subscription');
+    
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+    
+    if (savedSubscription) {
+      const parsedSub = JSON.parse(savedSubscription);
+      // Check if subscription has expired
+      if (parsedSub.expiresAt > Date.now()) {
+        setSubscription(parsedSub);
+      } else {
+        localStorage.removeItem('propdf_subscription');
+      }
+    }
   }, []);
+
+  const handleLogin = (name: string, email: string) => {
+    const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=6366f1&color=fff&bold=true`;
+    const newUser = { name, email, avatar };
+    setUser(newUser);
+    localStorage.setItem('propdf_user', JSON.stringify(newUser));
+    addToast(`Signed in as ${name}! Welcome to ProPDF Editor.`, 'success');
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setSubscription(null);
+    setShowProfileMenu(false);
+    localStorage.removeItem('propdf_user');
+    localStorage.removeItem('propdf_subscription');
+    addToast('Signed out successfully.', 'info');
+  };
+
+  const handleSubscriptionSuccess = (planName: string, days: number, price: number) => {
+    const expiresAt = Date.now() + days * 24 * 60 * 60 * 1000;
+    const newSubscription = { active: true, planName, expiresAt };
+    setSubscription(newSubscription);
+    localStorage.setItem('propdf_subscription', JSON.stringify(newSubscription));
+    setIsSubscriptionModalOpen(false);
+    
+    addToast(`Payment of ₹${price} verified! Plan active for ${days} days.`, 'success');
+    
+    // Perform download immediately
+    setTimeout(() => {
+      performDownload();
+    }, 100);
+  };
+
+  const handleMockGoogleSignInSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleNameInput.trim() || !googleEmailInput.trim()) return;
+
+    setIsSigningIn(true);
+    setTimeout(() => {
+      handleLogin(googleNameInput, googleEmailInput);
+      setIsSigningIn(false);
+      setShowMockGooglePopup(false);
+      setGoogleEmailInput('');
+      setGoogleNameInput('');
+    }, 1200);
+  };
 
   // Keyboard Shortcuts (Undo/Redo/Delete)
   useEffect(() => {
@@ -347,8 +422,8 @@ export const App: React.FC = () => {
     setSelectedElementId(null);
   };
 
-  // Compile and Download PDF
-  const handleDownloadPdf = async () => {
+  // Perform compilation and file download
+  const performDownload = async () => {
     if (!pdfBytes) return;
     setIsExporting(true);
     addToast('Compiling document...', 'info');
@@ -385,11 +460,134 @@ export const App: React.FC = () => {
     }
   };
 
+  // Guarded download action checking subscription active state
+  const handleDownloadPdf = () => {
+    if (!subscription || !subscription.active || subscription.expiresAt <= Date.now()) {
+      setIsSubscriptionModalOpen(true);
+      addToast('Premium subscription required to export files.', 'error');
+      return;
+    }
+    performDownload();
+  };
+
   const handleSaveSignature = (dataUrl: string) => {
     setActiveSignature(dataUrl);
     setActiveTool('signature');
     addToast('Signature created! Click on any page to place it.', 'success');
   };
+
+  if (!user) {
+    return (
+      <div className="app-container signin-layout" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'radial-gradient(circle at top right, var(--bg-header-glow), var(--bg-workspace))' }}>
+        <div className="signin-lock-screen glass-card" style={{ padding: '48px', maxWidth: '420px', width: '90%', textAlign: 'center', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)' }}>
+          <div className="signin-logo" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '24px' }}>
+            <div className="logo-sparkle large" style={{ background: 'var(--accent-gradient-primary)', padding: '14px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px', color: '#fff', boxShadow: 'var(--accent-shadow-primary)' }}>
+              <Sparkles size={28} />
+            </div>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--text-primary)' }}>ProPDF Editor</h2>
+          </div>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', marginBottom: '12px', color: 'var(--text-primary)' }}>Unlock Premium Editing</h3>
+          <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '32px' }}>
+            Please sign in with your Google account to access drawing tools, page reorganization, signatures, and instant exports.
+          </p>
+          
+          <button 
+            className="google-signin-btn" 
+            onClick={() => setShowMockGooglePopup(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              width: '100%',
+              padding: '12px 24px',
+              background: '#ffffff',
+              border: '1px solid #dadce0',
+              borderRadius: '8px',
+              color: '#3c4043',
+              fontSize: '0.95rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'background-color 0.2s, box-shadow 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
+            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#ffffff')}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" style={{ display: 'block' }}>
+              <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114A5.69 5.69 0 0 1 8.3 12.825a5.69 5.69 0 0 1 5.69-5.69c2.47 0 4.547 1.577 5.297 3.774l3.968-3.078C21.186 4.14 17.514 2 13.99 2 7.92 2 3 6.92 3 13s4.92 11 10.99 11c6.03 0 10.744-4.32 10.744-10.715 0-.685-.06-1.342-.172-1.999H12.24z"/>
+            </svg>
+            <span>Sign in with Google</span>
+          </button>
+
+          <div className="signin-features-mini" style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '32px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            <span>✓ Secure Client-Side</span>
+            <span>✓ Instant PDF Save</span>
+          </div>
+        </div>
+
+        {/* Mock Google Login Popup Modal */}
+        {showMockGooglePopup && (
+          <div className="modal-overlay" style={{ zIndex: 1000 }}>
+            <div className="modal-content glass mock-google-auth-popup animate-scale-up" style={{ padding: '32px', maxWidth: '360px', borderRadius: '12px', textAlign: 'center' }}>
+              <div className="google-popup-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '24px' }}>
+                <svg viewBox="0 0 24 24" width="32" height="32" style={{ marginBottom: '12px' }}>
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: '500', margin: '0 0 4px 0' }}>Sign in</h2>
+                <p style={{ fontSize: '0.85rem', color: '#5f6368', margin: 0 }}>to continue to ProPDF Editor</p>
+              </div>
+              
+              <form onSubmit={handleMockGoogleSignInSubmit} className="google-popup-form" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <input
+                  type="text"
+                  required
+                  placeholder="Full Name"
+                  value={googleNameInput}
+                  onChange={(e) => setGoogleNameInput(e.target.value)}
+                  className="google-input"
+                  style={{ width: '100%', padding: '12px 14px', borderRadius: '4px', border: '1px solid #dadce0', fontSize: '0.9rem', outline: 'none' }}
+                />
+                <input
+                  type="email"
+                  required
+                  placeholder="Email Address"
+                  value={googleEmailInput}
+                  onChange={(e) => setGoogleEmailInput(e.target.value)}
+                  className="google-input"
+                  style={{ width: '100%', padding: '12px 14px', borderRadius: '4px', border: '1px solid #dadce0', fontSize: '0.9rem', outline: 'none' }}
+                />
+                
+                <div className="google-popup-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
+                  <button 
+                    type="button" 
+                    className="google-btn-flat"
+                    onClick={() => setShowMockGooglePopup(false)}
+                    style={{ padding: '8px 16px', background: 'none', border: 'none', color: '#1a73e8', fontWeight: '500', cursor: 'pointer', fontSize: '0.85rem' }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="google-btn-primary"
+                    disabled={isSigningIn}
+                    style={{ padding: '8px 20px', background: '#1a73e8', border: 'none', borderRadius: '4px', color: '#fff', fontWeight: '500', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    {isSigningIn ? (
+                      <Clock size={14} className="spinner" />
+                    ) : 'Next'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
@@ -417,7 +615,7 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        <div className="header-actions">
+        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button 
             className="theme-toggle-btn text-tooltip" 
             onClick={toggleTheme}
@@ -426,6 +624,50 @@ export const App: React.FC = () => {
           >
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
+
+          {/* Google Profile Badge dropdown */}
+          {user && (
+            <div className="header-profile-menu-container" style={{ position: 'relative' }}>
+              <button 
+                className="header-profile-btn"
+                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '6px 12px', borderRadius: '20px', cursor: 'pointer', color: 'var(--text-primary)' }}
+              >
+                <img src={user.avatar} alt={user.name} className="profile-avatar-img" style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
+                <span className="profile-name-span" style={{ fontSize: '0.85rem', fontWeight: '500' }}>{user.name.split(' ')[0]}</span>
+              </button>
+              
+              {showProfileMenu && (
+                <div className="profile-dropdown-menu glass animate-scale-up" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', width: '220px', padding: '16px', borderRadius: '12px', zIndex: 100, boxShadow: '0 8px 30px rgba(0, 0, 0, 0.3)' }}>
+                  <div className="profile-dropdown-header" style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '12px' }}>
+                    <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>{user.name}</strong>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{user.email}</span>
+                  </div>
+                  <hr className="dropdown-divider" style={{ border: 'none', borderBottom: '1px solid rgba(255,255,255,0.08)', margin: '8px 0' }} />
+                  <div className="profile-dropdown-body" style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem' }}>
+                    <div className="subscription-status-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Subscription:</span>
+                      {subscription && subscription.active ? (
+                        <span className="sub-badge active" style={{ background: 'var(--accent-gradient-primary)', color: '#fff', padding: '2px 8px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: '600' }}>Pro Active</span>
+                      ) : (
+                        <span className="sub-badge trial" style={{ background: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: '10px', fontSize: '0.7rem' }}>Free Trial</span>
+                      )}
+                    </div>
+                    {subscription && subscription.active && (
+                      <div className="expiry-display-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Expires:</span>
+                        <strong style={{ color: 'var(--text-primary)' }}>{new Date(subscription.expiresAt).toLocaleDateString()}</strong>
+                      </div>
+                    )}
+                  </div>
+                  <hr className="dropdown-divider" style={{ border: 'none', borderBottom: '1px solid rgba(255,255,255,0.08)', margin: '8px 0' }} />
+                  <button className="dropdown-item logout-btn-item" onClick={handleLogout} style={{ width: '100%', padding: '8px', background: 'rgba(239, 68, 68, 0.1)', border: 'none', borderRadius: '6px', color: '#ef4444', fontWeight: '600', cursor: 'pointer', textAlign: 'center', fontSize: '0.8rem' }}>
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {pdfBytes && (
             <button
@@ -585,6 +827,14 @@ export const App: React.FC = () => {
         isOpen={isSignatureModalOpen}
         onClose={() => setIsSignatureModalOpen(false)}
         onSave={handleSaveSignature}
+      />
+
+      {/* Modal Subscription Gate */}
+      <SubscriptionModal
+        isOpen={isSubscriptionModalOpen}
+        onClose={() => setIsSubscriptionModalOpen(false)}
+        onSuccess={handleSubscriptionSuccess}
+        user={user}
       />
 
       {/* Custom Global Toast Container */}
