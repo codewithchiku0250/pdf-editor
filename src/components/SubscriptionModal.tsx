@@ -77,6 +77,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ isOpen, on
   // Dynamically load Razorpay SDK
   const loadRazorpaySDK = (): Promise<boolean> => {
     return new Promise((resolve) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((window as any).Razorpay) {
         resolve(true);
         return;
@@ -142,6 +143,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ isOpen, on
         name: 'ProPDF Editor',
         description: `${selectedPlan.name} (${selectedPlan.days} Days)`,
         image: 'https://ui-avatars.com/api/?name=Pro+PDF&background=6366f1&color=fff&bold=true',
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
         handler: function (_response: any) {
           // Success Callback
           setCheckoutStep('processing');
@@ -171,6 +173,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ isOpen, on
       };
 
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rzp = new (window as any).Razorpay(options);
         rzp.open();
       } catch (err) {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Bold, Italic, Underline, Sliders, Palette } from 'lucide-react';
+import { Settings, Bold, Italic, Underline, Sliders, Palette, X } from 'lucide-react';
 import type { EditorElement, TextElement, ShapeElement } from '../utils/pdfHelper';
 
 interface PropertiesPanelProps {
@@ -14,7 +14,14 @@ interface PropertiesPanelProps {
     italic: boolean;
     underline: boolean;
   };
-  setDefaultTextConfig: React.Dispatch<React.SetStateAction<any>>;
+  setDefaultTextConfig: React.Dispatch<React.SetStateAction<{
+    fontSize: number;
+    fontFamily: 'Helvetica' | 'Times' | 'Courier';
+    color: string;
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
+  }>>;
   defaultShapeConfig: {
     shapeType: 'rectangle' | 'circle' | 'line';
     fillColor: string;
@@ -22,13 +29,25 @@ interface PropertiesPanelProps {
     strokeWidth: number;
     opacity: number;
   };
-  setDefaultShapeConfig: React.Dispatch<React.SetStateAction<any>>;
+  setDefaultShapeConfig: React.Dispatch<React.SetStateAction<{
+    shapeType: 'rectangle' | 'circle' | 'line';
+    fillColor: string;
+    strokeColor: string;
+    strokeWidth: number;
+    opacity: number;
+  }>>;
   brushConfig: {
     color: string;
     thickness: number;
     isHighlighter: boolean;
   };
-  setBrushConfig: React.Dispatch<React.SetStateAction<any>>;
+  setBrushConfig: React.Dispatch<React.SetStateAction<{
+    color: string;
+    thickness: number;
+    isHighlighter: boolean;
+  }>>;
+  className?: string;
+  onClose?: () => void;
 }
 
 export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
@@ -40,28 +59,30 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   setDefaultShapeConfig,
   brushConfig,
   setBrushConfig,
+  className,
+  onClose,
 }) => {
   const textColors = ['#000000', '#1e293b', '#b91c1c', '#1d4ed8', '#047857', '#eab308', '#d946ef', '#ffffff'];
   const shapeColors = ['#000000', '#1e293b', '#b91c1c', '#1d4ed8', '#047857', '#eab308', '#d946ef', 'transparent'];
 
-  const handleTextChange = (key: string, value: any) => {
+  const handleTextChange = <K extends keyof typeof defaultTextConfig>(key: K, value: typeof defaultTextConfig[K]) => {
     if (selectedElement && selectedElement.type === 'text') {
       updateElement(selectedElement.id, { [key]: value });
     } else {
-      setDefaultTextConfig((prev: any) => ({ ...prev, [key]: value }));
+      setDefaultTextConfig((prev) => ({ ...prev, [key]: value }));
     }
   };
 
-  const handleShapeChange = (key: string, value: any) => {
+  const handleShapeChange = <K extends keyof typeof defaultShapeConfig>(key: K, value: typeof defaultShapeConfig[K]) => {
     if (selectedElement && selectedElement.type === 'shape') {
       updateElement(selectedElement.id, { [key]: value });
     } else {
-      setDefaultShapeConfig((prev: any) => ({ ...prev, [key]: value }));
+      setDefaultShapeConfig((prev) => ({ ...prev, [key]: value }));
     }
   };
 
-  const handleBrushChange = (key: string, value: any) => {
-    setBrushConfig((prev: any) => ({ ...prev, [key]: value }));
+  const handleBrushChange = <K extends keyof typeof brushConfig>(key: K, value: typeof brushConfig[K]) => {
+    setBrushConfig((prev) => ({ ...prev, [key]: value }));
   };
 
   // Render text properties
@@ -77,7 +98,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           <label>Font Family</label>
           <select
             value={config.fontFamily}
-            onChange={(e) => handleTextChange('fontFamily', e.target.value)}
+            onChange={(e) => handleTextChange('fontFamily', e.target.value as 'Helvetica' | 'Times' | 'Courier')}
             className="property-select"
           >
             <option value="Helvetica">Helvetica (Standard)</option>
@@ -163,7 +184,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <label>Shape Type</label>
             <select
               value={config.shapeType}
-              onChange={(e) => handleShapeChange('shapeType', e.target.value)}
+              onChange={(e) => handleShapeChange('shapeType', e.target.value as 'rectangle' | 'circle' | 'line')}
               className="property-select"
             >
               <option value="rectangle">Rectangle</option>
@@ -299,10 +320,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   };
 
   return (
-    <aside className="properties-panel glass">
+    <aside className={`properties-panel glass ${className || ''}`}>
       <div className="panel-header">
         <Settings size={18} />
         <h3>Properties</h3>
+        {onClose && (
+          <button className="sidebar-close-btn mobile-only" onClick={onClose} aria-label="Close Properties Panel">
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       <div className="panel-body">

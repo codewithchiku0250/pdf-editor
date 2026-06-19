@@ -6,7 +6,9 @@ import {
   Moon, 
   Sun, 
   FileEdit,
-  Clock
+  Clock,
+  FileText,
+  Settings
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import * as pdfjs from 'pdfjs-dist';
@@ -34,10 +36,40 @@ import type {
   EditorElement 
 } from './utils/pdfHelper';
 
+function getSavedUser(): { name: string; email: string; avatar: string } | null {
+  try {
+    const savedUser = localStorage.getItem('propdf_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getSavedSubscription(): { active: boolean; planName: string; expiresAt: number } | null {
+  try {
+    const savedSubscription = localStorage.getItem('propdf_subscription');
+    if (savedSubscription) {
+      const parsedSub = JSON.parse(savedSubscription);
+      if (parsedSub.expiresAt > Date.now()) {
+        return parsedSub;
+      } else {
+        localStorage.removeItem('propdf_subscription');
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function getNow(): number {
+  return Date.now();
+}
+
 export const App: React.FC = () => {
   // User Authentication & Subscription States
-  const [user, setUser] = useState<{ name: string; email: string; avatar: string } | null>(null);
-  const [subscription, setSubscription] = useState<{ active: boolean; planName: string; expiresAt: number } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; avatar: string } | null>(() => getSavedUser());
+  const [subscription, setSubscription] = useState<{ active: boolean; planName: string; expiresAt: number } | null>(() => getSavedSubscription());
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   
@@ -63,6 +95,23 @@ export const App: React.FC = () => {
   const [activeSignature, setActiveSignature] = useState<string | null>(null);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [showLeftSidebar, setShowLeftSidebar] = useState(window.innerWidth >= 1024);
+  const [showRightSidebar, setShowRightSidebar] = useState(window.innerWidth >= 1024);
+
+  // Auto-adjust sidebars on resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setShowLeftSidebar(true);
+        setShowRightSidebar(true);
+      } else {
+        setShowLeftSidebar(false);
+        setShowRightSidebar(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Overlays state managed by Undo/Redo history hook
   const {
@@ -76,17 +125,30 @@ export const App: React.FC = () => {
   } = useHistory<Record<string, EditorElement[]>>({});
 
   // Tool Configurations
-  const [defaultTextConfig, setDefaultTextConfig] = useState({
+  const [defaultTextConfig, setDefaultTextConfig] = useState<{
+    fontSize: number;
+    fontFamily: 'Helvetica' | 'Times' | 'Courier';
+    color: string;
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
+  }>({
     fontSize: 16,
-    fontFamily: 'Helvetica' as const,
+    fontFamily: 'Helvetica',
     color: '#000000',
     bold: false,
     italic: false,
     underline: false,
   });
 
-  const [defaultShapeConfig, setDefaultShapeConfig] = useState({
-    shapeType: 'rectangle' as const,
+  const [defaultShapeConfig, setDefaultShapeConfig] = useState<{
+    shapeType: 'rectangle' | 'circle' | 'line';
+    fillColor: string;
+    strokeColor: string;
+    strokeWidth: number;
+    opacity: number;
+  }>({
+    shapeType: 'rectangle',
     fillColor: 'transparent',
     strokeColor: '#000000',
     strokeWidth: 2,
@@ -109,6 +171,17 @@ export const App: React.FC = () => {
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  const handleDeleteElement = useCallback((pageId: string, elemId: string) => {
+    setElementsState((prev) => {
+      const pageElements = prev[pageId] || [];
+      return {
+        ...prev,
+        [pageId]: pageElements.filter((el) => el.id !== elemId),
+      };
+    });
+    setSelectedElementId(null);
+  }, [setElementsState, setSelectedElementId]);
 
   // Tool Selection Helper
   const handleSelectTool = (tool: ToolType) => {
@@ -139,23 +212,6 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
-    
-    const savedUser = localStorage.getItem('propdf_user');
-    const savedSubscription = localStorage.getItem('propdf_subscription');
-    
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    
-    if (savedSubscription) {
-      const parsedSub = JSON.parse(savedSubscription);
-      // Check if subscription has expired
-      if (parsedSub.expiresAt > Date.now()) {
-        setSubscription(parsedSub);
-      } else {
-        localStorage.removeItem('propdf_subscription');
-      }
-    }
   }, []);
 
   const handleLogin = (name: string, email: string) => {
@@ -176,7 +232,7 @@ export const App: React.FC = () => {
   };
 
   const handleSubscriptionSuccess = (planName: string, days: number, price: number) => {
-    const expiresAt = Date.now() + days * 24 * 60 * 60 * 1000;
+    const expiresAt = getNow() + days * 24 * 60 * 60 * 1000;
     const newSubscription = { active: true, planName, expiresAt };
     setSubscription(newSubscription);
     localStorage.setItem('propdf_subscription', JSON.stringify(newSubscription));
@@ -236,7 +292,7 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, selectedElementId, activePageId]);
+  }, [undo, redo, selectedElementId, activePageId, addToast, handleDeleteElement]);
 
   // Load and Parse PDF
   const processPdfFile = async (file: File) => {
@@ -411,16 +467,7 @@ export const App: React.FC = () => {
     }, true); // overwrite: true to avoid adding intermediate resizing/dragging steps to undo stack
   };
 
-  const handleDeleteElement = (pageId: string, elemId: string) => {
-    setElementsState((prev) => {
-      const pageElements = prev[pageId] || [];
-      return {
-        ...prev,
-        [pageId]: pageElements.filter((el) => el.id !== elemId),
-      };
-    });
-    setSelectedElementId(null);
-  };
+
 
   // Perform compilation and file download
   const performDownload = async () => {
@@ -432,7 +479,7 @@ export const App: React.FC = () => {
       const compiledBytes = await compilePdf(pdfBytes, pages, elementsState);
       
       // Download blob
-      const blob = new Blob([compiledBytes as any], { type: 'application/pdf' });
+      const blob = new Blob([compiledBytes as unknown as BlobPart], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -616,6 +663,37 @@ export const App: React.FC = () => {
         )}
 
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {pdfBytes && (
+            <>
+              <button 
+                className={`theme-toggle-btn sidebar-toggle-btn text-tooltip ${showLeftSidebar ? 'active' : ''}`}
+                onClick={() => {
+                  setShowLeftSidebar(!showLeftSidebar);
+                  if (window.innerWidth < 1024) {
+                    setShowRightSidebar(false);
+                  }
+                }}
+                data-tooltip="Toggle Pages Panel"
+                aria-label="Toggle Pages Panel"
+              >
+                <FileText size={20} />
+              </button>
+              <button 
+                className={`theme-toggle-btn sidebar-toggle-btn text-tooltip ${showRightSidebar ? 'active' : ''}`}
+                onClick={() => {
+                  setShowRightSidebar(!showRightSidebar);
+                  if (window.innerWidth < 1024) {
+                    setShowLeftSidebar(false);
+                  }
+                }}
+                data-tooltip="Toggle Properties Panel"
+                aria-label="Toggle Properties Panel"
+              >
+                <Settings size={20} />
+              </button>
+            </>
+          )}
+
           <button 
             className="theme-toggle-btn text-tooltip" 
             onClick={toggleTheme}
@@ -677,11 +755,11 @@ export const App: React.FC = () => {
             >
               {isExporting ? (
                 <>
-                  <Clock size={16} className="spinner" /> Compiling...
+                  <Clock size={16} className="spinner" /> <span className="hide-mobile">Compiling...</span>
                 </>
               ) : (
                 <>
-                  <Download size={16} /> Export PDF
+                  <Download size={16} /> <span className="hide-mobile">Export PDF</span>
                 </>
               )}
             </button>
@@ -694,6 +772,8 @@ export const App: React.FC = () => {
         <div className="workspace-layout">
           {/* Left Thumbnail Organizer */}
           <ThumbnailSidebar
+            className={showLeftSidebar ? 'open' : 'closed'}
+            onClose={() => setShowLeftSidebar(false)}
             pages={pages}
             activePageId={activePageId}
             setActivePageId={setActivePageId}
@@ -745,6 +825,8 @@ export const App: React.FC = () => {
 
           {/* Right Properties Customizer */}
           <PropertiesPanel
+            className={showRightSidebar ? 'open' : 'closed'}
+            onClose={() => setShowRightSidebar(false)}
             selectedElement={
               activePageId && selectedElementId
                 ? elementsState[activePageId]?.find((el) => el.id === selectedElementId) || null
@@ -820,6 +902,17 @@ export const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Mobile Drawer Backdrops */}
+      {(showLeftSidebar || showRightSidebar) && (
+        <div 
+          className="sidebar-backdrop mobile-only" 
+          onClick={() => {
+            setShowLeftSidebar(false);
+            setShowRightSidebar(false);
+          }}
+        />
       )}
 
       {/* Modal Signature Stamp Maker */}

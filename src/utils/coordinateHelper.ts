@@ -39,10 +39,10 @@ export function percentToPdfCoords(
   // Visual width and height after rotation
   // pdf-lib's page.getSize() returns the visually rotated width and height.
   // Standard coordinate mapping (accounting for top-left visual to bottom-left PDF coordinate system):
-  let x = px * pdfPageWidth;
-  let y = (1 - (py + ph)) * pdfPageHeight;
-  let width = pw * pdfPageWidth;
-  let height = ph * pdfPageHeight;
+  const x = px * pdfPageWidth;
+  const y = (1 - (py + ph)) * pdfPageHeight;
+  const width = pw * pdfPageWidth;
+  const height = ph * pdfPageHeight;
 
   // Note: Depending on how the PDF rotation is set in the document metadata,
   // pdf-lib handles coordinates relative to the visual page size. 

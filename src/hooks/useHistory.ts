@@ -21,7 +21,7 @@ export function useHistory<T>(initialPresent: T) {
       setState((currentState) => {
         const resolvedNewPresent =
           typeof newPresent === 'function'
-            ? (newPresent as Function)(currentState.present)
+            ? (newPresent as (prev: T) => T)(currentState.present)
             : newPresent;
 
         if (currentState.present === resolvedNewPresent) {

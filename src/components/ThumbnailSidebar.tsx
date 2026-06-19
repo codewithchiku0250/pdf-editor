@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RotateCw, Trash2, Plus, FileText } from 'lucide-react';
+import { RotateCw, Trash2, Plus, FileText, X } from 'lucide-react';
 import type { EditorPage } from '../utils/pdfHelper';
 
 interface ThumbnailSidebarProps {
@@ -10,6 +10,8 @@ interface ThumbnailSidebarProps {
   onDeletePage: (id: string) => void;
   onAddBlankPage: (afterId: string) => void;
   onReorderPages: (dragIndex: number, hoverIndex: number) => void;
+  className?: string;
+  onClose?: () => void;
 }
 
 export const ThumbnailSidebar: React.FC<ThumbnailSidebarProps> = ({
@@ -20,6 +22,8 @@ export const ThumbnailSidebar: React.FC<ThumbnailSidebarProps> = ({
   onDeletePage,
   onAddBlankPage,
   onReorderPages,
+  className,
+  onClose,
 }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
@@ -48,14 +52,22 @@ export const ThumbnailSidebar: React.FC<ThumbnailSidebarProps> = ({
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+    if (onClose && window.innerWidth < 1024) {
+      onClose();
+    }
   };
 
   return (
-    <aside className="thumbnail-sidebar glass">
+    <aside className={`thumbnail-sidebar glass ${className || ''}`}>
       <div className="sidebar-header">
         <FileText size={18} />
         <h3>Pages</h3>
         <span className="page-count-badge">{pages.length}</span>
+        {onClose && (
+          <button className="sidebar-close-btn mobile-only" onClick={onClose} aria-label="Close Pages Panel">
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       <div className="thumbnails-list">

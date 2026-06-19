@@ -518,8 +518,9 @@ body {
 
 .editor-scroller {
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
   padding: 40px 20px 140px 20px;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Properties Sidebar Panel */
@@ -1986,4 +1987,287 @@ body {
   from { transform: scale(0.95); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+
+/* ==========================================
+   MOBILE RESPONSIVE & PREMIUM DESKTOP STYLES
+   ========================================== */
+
+/* Sidebar toggle buttons inside header actions */
+.sidebar-toggle-btn.active {
+  background: var(--accent-gradient) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3) !important;
+}
+
+/* Close button for sidebars on mobile */
+.sidebar-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.sidebar-close-btn:hover {
+  background: var(--glass-border);
+  color: var(--text-primary);
+}
+
+/* Translucent drawer backdrop for mobile */
+.sidebar-backdrop {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 140;
+  animation: fadeIn var(--transition-fast);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Desktop Sidebar Toggling (Min width: 1024px) */
+@media (min-width: 1024px) {
+  .thumbnail-sidebar {
+    width: 200px;
+    opacity: 1;
+    visibility: visible;
+    transition: width var(--transition-normal), opacity var(--transition-normal), visibility var(--transition-normal);
+  }
+  
+  .thumbnail-sidebar.closed {
+    width: 0 !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    border-right: none !important;
+    padding: 0 !important;
+  }
+  
+  .properties-panel {
+    width: 250px;
+    opacity: 1;
+    visibility: visible;
+    transition: width var(--transition-normal), opacity var(--transition-normal), visibility var(--transition-normal);
+  }
+  
+  .properties-panel.closed {
+    width: 0 !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    border-left: none !important;
+    padding: 0 !important;
+  }
+}
+
+/* Responsive UI Breakpoint: Tablet & Mobile (Max width: 1023px) */
+@media (max-width: 1023px) {
+  .mobile-only {
+    display: flex !important;
+  }
+  
+  /* Left Sidebar as Drawer */
+  .thumbnail-sidebar {
+    position: fixed !important;
+    top: 64px;
+    left: 0;
+    bottom: 0;
+    width: 260px !important;
+    height: calc(100vh - 64px);
+    z-index: 150 !important;
+    background: var(--glass-bg-dark) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform var(--transition-normal), visibility var(--transition-normal);
+    box-shadow: 20px 0 40px rgba(0, 0, 0, 0.4);
+    border-right: 1px solid var(--glass-border) !important;
+  }
+  
+  .thumbnail-sidebar.open {
+    transform: translateX(0);
+    visibility: visible;
+  }
+  
+  /* Right Properties Panel as Drawer */
+  .properties-panel {
+    position: fixed !important;
+    top: 64px;
+    right: 0;
+    bottom: 0;
+    width: 280px !important;
+    height: calc(100vh - 64px);
+    z-index: 150 !important;
+    background: var(--glass-bg-dark) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform var(--transition-normal), visibility var(--transition-normal);
+    box-shadow: -20px 0 40px rgba(0, 0, 0, 0.4);
+    border-left: 1px solid var(--glass-border) !important;
+  }
+  
+  .properties-panel.open {
+    transform: translateX(0);
+    visibility: visible;
+  }
+  
+  .sidebar-close-btn.mobile-only {
+    display: flex !important;
+    margin-left: auto;
+  }
+}
+
+/* Desktop overrides for mobile-only helpers */
+@media (min-width: 1024px) {
+  .mobile-only {
+    display: none !important;
+  }
+}
+
+/* Mobile Specific Tweaks (Max width: 768px) */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+  
+  .app-header {
+    padding: 8px 16px;
+  }
+  
+  /* Make Logo compact */
+  .header-logo h1 {
+    display: none;
+  }
+  
+  .logo-badge {
+    display: none;
+  }
+  
+  /* Narrower file name input */
+  .file-name-input {
+    width: 120px;
+    font-size: 0.85rem;
+  }
+  
+  .header-file-name-container {
+    padding: 4px 10px;
+    gap: 6px;
+  }
+  
+  .header-actions {
+    gap: 8px;
+  }
+  
+  .download-btn {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+  
+  /* Scrollable Floating Toolbar */
+  .floating-toolbar-wrapper {
+    bottom: 16px;
+    width: 92%;
+    max-width: 480px;
+  }
+  
+  .floating-toolbar {
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 8px 12px;
+    border-radius: var(--border-radius-md);
+    gap: 8px;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    /* Hide scrollbars */
+    scrollbar-width: none;
+  }
+  
+  .floating-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .toolbar-section {
+    flex-shrink: 0;
+  }
+  
+  .toolbar-divider {
+    flex-shrink: 0;
+  }
+  
+  /* Modals Responsiveness */
+  .modal-overlay {
+    align-items: flex-start;
+    padding: 24px 12px;
+    overflow-y: auto;
+  }
+  
+  .modal-content {
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    margin-top: 10vh;
+  }
+  
+  .modal-body {
+    overflow-y: auto;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+    max-height: calc(85vh - 120px);
+  }
+  
+  /* Sign in box */
+  .signin-lock-screen {
+    padding: 24px !important;
+  }
+  
+  /* Upload screen styling */
+  .upload-screen {
+    padding: 20px;
+  }
+  
+  .upload-container {
+    padding: 24px;
+  }
+  
+  .upload-container h2 {
+    font-size: 1.6rem;
+  }
+  
+  .upload-subtitle {
+    font-size: 0.95rem;
+    margin-bottom: 24px;
+  }
+  
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  
+  .feature-item h4 {
+    font-size: 0.9rem;
+  }
+  
+  .feature-item p {
+    font-size: 0.78rem;
+  }
+}
+
 

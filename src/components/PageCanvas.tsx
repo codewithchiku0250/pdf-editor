@@ -4,6 +4,10 @@ import { X, CornerRightDown } from 'lucide-react';
 import type { EditorPage, EditorElement, DrawingPoint, TextElement, ShapeElement, DrawingElement, ImageElement } from '../utils/pdfHelper';
 import { percentPathToSvgPath } from '../utils/coordinateHelper';
 
+function generateElementId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+}
+
 interface PageCanvasProps {
   pdfDoc: pdfjs.PDFDocumentProxy;
   page: EditorPage;
@@ -17,9 +21,26 @@ interface PageCanvasProps {
   updateElement: (pageId: string, elemId: string, updates: Partial<EditorElement>) => void;
   deleteElement: (pageId: string, elemId: string) => void;
   // Configuration options passed from parent
-  defaultTextConfig: any;
-  defaultShapeConfig: any;
-  brushConfig: any;
+  defaultTextConfig: {
+    fontSize: number;
+    fontFamily: 'Helvetica' | 'Times' | 'Courier';
+    color: string;
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
+  };
+  defaultShapeConfig: {
+    shapeType: 'rectangle' | 'circle' | 'line';
+    fillColor: string;
+    strokeColor: string;
+    strokeWidth: number;
+    opacity: number;
+  };
+  brushConfig: {
+    color: string;
+    thickness: number;
+    isHighlighter: boolean;
+  };
   activeSignature: string | null;
   setActiveSignature: (sig: string | null) => void;
 }
@@ -142,7 +163,7 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
       const h = 8;  // default signature height percent
       
       const newElem: EditorElement = {
-        id: `img-${Date.now()}`,
+        id: generateElementId('img'),
         type: 'image',
         x: percent.x - w / 2,
         y: percent.y - h / 2,
@@ -169,7 +190,7 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
     // Case 3: Create Text Box
     if (activeTool === 'text') {
       const newElem: EditorElement = {
-        id: `txt-${Date.now()}`,
+        id: generateElementId('txt'),
         type: 'text',
         x: percent.x,
         y: percent.y,
@@ -294,7 +315,7 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
       const maxY = Math.max(...ys);
 
       const newElem: EditorElement = {
-        id: `drw-${Date.now()}`,
+        id: generateElementId('drw'),
         type: 'drawing',
         x: minX,
         y: minY,
@@ -315,7 +336,7 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
 
       if (activeTool === 'whiteout') {
         newElem = {
-          id: `wht-${Date.now()}`,
+          id: generateElementId('wht'),
           type: 'whiteout',
           x: tempShapeCoords.x,
           y: tempShapeCoords.y,
@@ -324,7 +345,7 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
         };
       } else {
         newElem = {
-          id: `shp-${Date.now()}`,
+          id: generateElementId('shp'),
           type: 'shape',
           shapeType: defaultShapeConfig.shapeType,
           x: tempShapeCoords.x,
@@ -359,7 +380,7 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
       const dataUrl = event.target?.result as string;
       
       const newElem: EditorElement = {
-        id: `img-${Date.now()}`,
+        id: generateElementId('img'),
         type: 'image',
         x: dragStartPercent.x,
         y: dragStartPercent.y,
@@ -421,6 +442,208 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
     setEditingTextId(null);
   };
 
+  // TOUCH EVENTS FOR MOBILE DRAWING & EDITING
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 0) return;
+    const touch = e.touches[0];
+    const target = e.target as HTMLElement;
+    const isOverlayContainer = target.classList.contains('editor-overlay-layer') || target.tagName.toLowerCase() === 'svg';
+    
+    // Check if user is clicking on a resize handle or an element
+    const isInteraction = target.closest('.overlay-element') || target.closest('.element-resize-handle');
+    
+    if (activeTool !== 'select' || isInteraction) {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    }
+
+    const percent = getPercentCoords(touch.clientX, touch.clientY);
+    setSelectedElementId(null);
+
+    // Case 1: Place Signature Stamp
+    if (activeTool === 'signature' && activeSignature) {
+      const w = 25; // default signature width percent
+      const h = 8;  // default signature height percent
+      
+      const newElem: EditorElement = {
+        id: generateElementId('img'),
+        type: 'image',
+        x: percent.x - w / 2,
+        y: percent.y - h / 2,
+        width: w,
+        height: h,
+        dataUrl: activeSignature,
+      } as ImageElement;
+
+      addElement(page.id, newElem);
+      setSelectedElementId(newElem.id);
+      setActiveSignature(null); // Clear stamp after placing
+      return;
+    }
+
+    // Case 2: Upload Image on click
+    if (activeTool === 'image') {
+      setDragStartPercent(percent);
+      if (fileInputRef.current) {
+        fileInputRef.current.click();
+      }
+      return;
+    }
+
+    // Case 3: Create Text Box
+    if (activeTool === 'text') {
+      const newElem: EditorElement = {
+        id: generateElementId('txt'),
+        type: 'text',
+        x: percent.x,
+        y: percent.y,
+        width: 30, // Initial default w%
+        height: 6,  // Initial default h%
+        text: 'Type text here...',
+        fontSize: defaultTextConfig.fontSize,
+        fontFamily: defaultTextConfig.fontFamily,
+        color: defaultTextConfig.color,
+        bold: defaultTextConfig.bold,
+        italic: defaultTextConfig.italic,
+        underline: defaultTextConfig.underline,
+      } as TextElement;
+
+      addElement(page.id, newElem);
+      setSelectedElementId(newElem.id);
+      setEditingTextId(newElem.id);
+      setEditingTextValue('Type text here...');
+      return;
+    }
+
+    // Case 4: Freehand Drawing
+    if (activeTool === 'draw') {
+      setIsMouseDown(true);
+      setMouseAction('drawing');
+      setTempDrawingPoints([percent]);
+      return;
+    }
+
+    // Case 5: Shape Drawing (Rectangle / Circle / Line)
+    if (activeTool === 'shape') {
+      setIsMouseDown(true);
+      setMouseAction('shaping');
+      setDragStartPercent(percent);
+      setTempShapeCoords({ x: percent.x, y: percent.y, w: 0, h: 0 });
+      return;
+    }
+
+    // Case 6: Whiteout Drawing
+    if (activeTool === 'whiteout') {
+      setIsMouseDown(true);
+      setMouseAction('shaping');
+      setDragStartPercent(percent);
+      setTempShapeCoords({ x: percent.x, y: percent.y, w: 0, h: 0 });
+      return;
+    }
+
+    // Default: Clicked blank space in Select tool -> deselect
+    if (activeTool === 'select' && isOverlayContainer) {
+      setSelectedElementId(null);
+      setEditingTextId(null);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isMouseDown || !containerRef.current || e.touches.length === 0) return;
+    
+    // Prevent default scroll behaviour when drawing / resizing / dragging
+    if (mouseAction) {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    }
+    
+    const touch = e.touches[0];
+    const percent = getPercentCoords(touch.clientX, touch.clientY);
+
+    // Case 1: Draw freehand
+    if (mouseAction === 'drawing') {
+      setTempDrawingPoints((prev) => [...prev, percent]);
+      return;
+    }
+
+    // Case 2: Shape / Whiteout rectangle preview
+    if (mouseAction === 'shaping') {
+      const w = percent.x - dragStartPercent.x;
+      const h = percent.y - dragStartPercent.y;
+      setTempShapeCoords({
+        x: w < 0 ? percent.x : dragStartPercent.x,
+        y: h < 0 ? percent.y : dragStartPercent.y,
+        w: Math.abs(w),
+        h: Math.abs(h),
+      });
+      return;
+    }
+
+    // Case 3: Resize selected element
+    if (mouseAction === 'resizing' && activeResizingId) {
+      const elem = elements.find((el) => el.id === activeResizingId);
+      if (!elem) return;
+
+      const newW = percent.x - elem.x;
+      const newH = percent.y - elem.y;
+
+      updateElement(page.id, activeResizingId, {
+        width: Math.max(3, newW),
+        height: Math.max(2, newH),
+      });
+      return;
+    }
+
+    // Case 4: Drag selected element
+    if (mouseAction === 'dragging' && selectedElementId) {
+      const elem = elements.find((el) => el.id === selectedElementId);
+      if (!elem) return;
+
+      const newX = percent.x - dragOffset.x;
+      const newY = percent.y - dragOffset.y;
+
+      updateElement(page.id, selectedElementId, {
+        x: Math.max(0, Math.min(100 - elem.width, newX)),
+        y: Math.max(0, Math.min(100 - elem.height, newY)),
+      });
+    }
+  };
+
+  const handleElementTouchStart = (e: React.TouchEvent, elem: EditorElement) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName.toLowerCase() === 'textarea' || target.tagName.toLowerCase() === 'input') {
+      return;
+    }
+    if (activeTool !== 'select' && activeTool !== 'text') return;
+    
+    e.stopPropagation();
+
+    setSelectedElementId(elem.id);
+    setIsMouseDown(true);
+    setMouseAction('dragging');
+
+    if (e.touches.length > 0) {
+      const touch = e.touches[0];
+      const percent = getPercentCoords(touch.clientX, touch.clientY);
+      setDragOffset({
+        x: percent.x - elem.x,
+        y: percent.y - elem.y,
+      });
+    }
+  };
+
+  const handleResizeHandleTouchStart = (e: React.TouchEvent, elemId: string) => {
+    e.stopPropagation();
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+    setIsMouseDown(true);
+    setMouseAction('resizing');
+    setActiveResizingId(elemId);
+  };
+
   return (
     <div
       id={`page-container-${page.id}`}
@@ -446,6 +669,9 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleMouseUp}
     >
       {/* Hidden file input for uploading images */}
       <input
@@ -540,6 +766,7 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
                 zIndex: isSelected ? 20 : 11,
               }}
               onMouseDown={(e) => handleElementMouseDown(e, elem)}
+              onTouchStart={(e) => handleElementTouchStart(e, elem)}
             >
               {/* Delete element button */}
               {isSelected && (
@@ -560,6 +787,7 @@ export const PageCanvas: React.FC<PageCanvasProps> = ({
                 <div
                   className="element-resize-handle"
                   onMouseDown={(e) => handleResizeHandleMouseDown(e, elem.id)}
+                  onTouchStart={(e) => handleResizeHandleTouchStart(e, elem.id)}
                   title="Drag to resize"
                 >
                   <CornerRightDown size={10} className="resize-handle-icon" />
